@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biornn"
+version = "0.1.0"
+description = "Vanilla and leaky RNNs on long-range-dependency benchmarks, plus biologically motivated RNN paper reproductions."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "torch",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+# Wakhloo, Clark & Abbott (2025) reproduction in papers/wakhloo2025/
+wakhloo = ["jax", "diffrax"]
+notebooks = ["ipykernel", "nbstripout"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
