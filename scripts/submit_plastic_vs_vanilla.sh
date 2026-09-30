@@ -8,8 +8,10 @@ set -euo pipefail
 CONDA_ENV=${CONDA_ENV:-/gscratch/cheme/agolan/phys_417_env}
 MAX_CONCURRENT=${MAX_CONCURRENT:-64}
 
+set +u                                         # /etc/bashrc and conda activate scripts reference unset vars
 source ~/.bashrc
 conda activate "$CONDA_ENV"
+set -u
 mkdir -p logs
 
 n=$(python scripts/plastic_vs_vanilla.py count "$@")

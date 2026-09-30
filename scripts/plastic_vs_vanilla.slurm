@@ -18,8 +18,10 @@
 set -euo pipefail
 CONDA_ENV=${CONDA_ENV:-/gscratch/cheme/agolan/phys_417_env}
 
+set +u                                         # /etc/bashrc and conda activate scripts reference unset vars
 source ~/.bashrc
 conda activate "$CONDA_ENV"
+set -u
 cd "$SLURM_SUBMIT_DIR"                         # repo root
 export PYTHONPATH="$SLURM_SUBMIT_DIR/src:${PYTHONPATH:-}"  # import biornn without pip install -e
 
