@@ -1,12 +1,23 @@
 #!/bin/bash
 # Vanilla vs. plastic RNN on the frequency-encoded Adding Problem.
 # One array task = one (model, hidden size, seq_len, seed) run; see
-# scripts/plastic_vs_vanilla.py. Submit with scripts/submit_plastic_vs_vanilla.sh,
-# which sizes the array and queues the comparison job after it. Without an
-# array task id (the comparison job) this script runs `compare` instead.
+# scripts/plastic_vs_vanilla.py. Submit from the repo root:
+#
+#   sbatch scripts/plastic_vs_vanilla.slurm
+#
+# That trains the whole default grid (342 runs) and queues the comparison
+# (results.csv + figures) to start once every run has ended. Re-submitting
+# after preemptions/failures only trains the missing runs.
+#
+# Extra arguments go to plastic_vs_vanilla.py. If they change the grid, size
+# the array to match (`python scripts/plastic_vs_vanilla.py count ...`):
+#   sbatch --array=0-1025%64 scripts/plastic_vs_vanilla.slurm --seeds 0 1 2 --out-dir results/pvv_3seeds
+# To redo only the comparison:
+#   sbatch --array=0 scripts/plastic_vs_vanilla.slurm compare
 #SBATCH --job-name=plastic_vs_vanilla
 #SBATCH --account=stf
 #SBATCH --partition=ckpt
+#SBATCH --array=0-341%64
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
@@ -17,7 +28,12 @@
 
 set -euo pipefail
 CONDA_ENV=${CONDA_ENV:-/gscratch/cheme/agolan/phys_417_env}
-echo "job ${SLURM_JOB_ID} task ${SLURM_ARRAY_TASK_ID:-compare} on $(hostname)"
+command=run
+if [[ "${1:-}" == compare ]]; then
+    command=compare
+    shift
+fi
+echo "job ${SLURM_JOB_ID} ${command} task ${SLURM_ARRAY_TASK_ID:-} on $(hostname)"
 
 # /etc/bashrc, ~/.bashrc and conda's activate scripts aren't written for
 # errexit/nounset: under `set -e` any failing test inside them ends the job
@@ -33,8 +49,12 @@ export PYTHONPATH="$SLURM_SUBMIT_DIR/src:${PYTHONPATH:-}"  # import biornn witho
 echo "python: $(command -v python)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
-if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
-    python scripts/plastic_vs_vanilla.py run "$@"
-else
-    python scripts/plastic_vs_vanilla.py compare "$@"
+# The first task queues the comparison behind the whole array (once: not again
+# when it is requeued after a preemption).
+if [[ $command == run && ${SLURM_ARRAY_TASK_ID:-} == "${SLURM_ARRAY_TASK_MIN:-}" && ${SLURM_RESTART_COUNT:-0} == 0 ]]; then
+    sbatch --array=0 --dependency=afterany:"${SLURM_ARRAY_JOB_ID}" --job-name=pvv_compare \
+        scripts/plastic_vs_vanilla.slurm compare "$@" \
+        || echo "warning: could not queue the comparison; when the runs finish: sbatch --array=0 scripts/plastic_vs_vanilla.slurm compare" >&2
 fi
+
+python scripts/plastic_vs_vanilla.py "$command" "$@"
