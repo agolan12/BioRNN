@@ -17,15 +17,20 @@
 
 set -euo pipefail
 CONDA_ENV=${CONDA_ENV:-/gscratch/cheme/agolan/phys_417_env}
+echo "job ${SLURM_JOB_ID} task ${SLURM_ARRAY_TASK_ID:-compare} on $(hostname)"
 
-set +u                                         # /etc/bashrc and conda activate scripts reference unset vars
+# /etc/bashrc, ~/.bashrc and conda's activate scripts aren't written for
+# errexit/nounset: under `set -e` any failing test inside them ends the job
+# with empty logs.
+set +eu
 source ~/.bashrc
-conda activate "$CONDA_ENV"
-set -u
+conda activate "$CONDA_ENV" || { echo "error: could not activate $CONDA_ENV" >&2; exit 1; }
+set -eu
+trap 'echo "error: line $LINENO exited with status $?" >&2' ERR  # never die without a message
 cd "$SLURM_SUBMIT_DIR"                         # repo root
 export PYTHONPATH="$SLURM_SUBMIT_DIR/src:${PYTHONPATH:-}"  # import biornn without pip install -e
 
-echo "job ${SLURM_JOB_ID} task ${SLURM_ARRAY_TASK_ID:-compare} on $(hostname)"
+echo "python: $(command -v python)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
 if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then

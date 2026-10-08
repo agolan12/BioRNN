@@ -17,3 +17,7 @@ papers/**/*.png
 
 # OS
 .DS_Store
+
+# SLURM logs
+logs/*
+!logs/.gitkeep

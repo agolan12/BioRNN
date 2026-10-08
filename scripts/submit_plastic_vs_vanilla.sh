@@ -8,11 +8,16 @@ set -euo pipefail
 CONDA_ENV=${CONDA_ENV:-/gscratch/cheme/agolan/phys_417_env}
 MAX_CONCURRENT=${MAX_CONCURRENT:-64}
 
-set +u                                         # /etc/bashrc and conda activate scripts reference unset vars
+# /etc/bashrc, ~/.bashrc and conda's activate scripts aren't written for
+# errexit/nounset: under `set -e` any failing test inside them ends this
+# script before it prints or submits anything.
+set +eu
 source ~/.bashrc
-conda activate "$CONDA_ENV"
-set -u
-mkdir -p logs
+conda activate "$CONDA_ENV" || { echo "error: could not activate $CONDA_ENV" >&2; exit 1; }
+set -eu
+trap 'echo "error: line $LINENO exited with status $?" >&2' ERR  # never die without a message
+cd "$(dirname "$0")/.."                        # repo root: sbatch resolves logs/ and scripts/ from here
+mkdir -p logs                                  # sbatch won't create it, and a job whose log dir is missing fails with no output
 
 n=$(python scripts/plastic_vs_vanilla.py count "$@")
 train=$(sbatch --parsable --array=0-$((n - 1))%${MAX_CONCURRENT} scripts/plastic_vs_vanilla.slurm "$@")
